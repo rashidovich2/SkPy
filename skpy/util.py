@@ -191,7 +191,7 @@ class SkypeUtils:
             class: same, but modified, class
         """
         def __bool__(self):
-            return bool(any(getattr(self, attr) for attr in self.attrs))
+            return any((getattr(self, attr) for attr in self.attrs))
 
         cls.__bool__ = cls.__nonzero__ = __bool__
         return cls
@@ -251,10 +251,8 @@ class SkypeUtils:
             generator: generator of objects produced from the method
         """
         while True:
-            iterRes = fn(*args, **kwargs)
-            if iterRes:
-                for item in transform(iterRes) if transform else iterRes:
-                    yield item
+            if iterRes := fn(*args, **kwargs):
+                yield from transform(iterRes) if transform else iterRes
             else:
                 break
 

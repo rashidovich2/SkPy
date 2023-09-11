@@ -107,10 +107,10 @@ class Skype(SkypeObj):
         Returns:
             :class:`.SkypeEvent` list: a list of events, possibly empty
         """
-        events = []
-        for json in self.conn.endpoints["self"].getEvents():
-            events.append(SkypeEvent.fromRaw(self, json))
-        return events
+        return [
+            SkypeEvent.fromRaw(self, json)
+            for json in self.conn.endpoints["self"].getEvents()
+        ]
 
     def setPresence(self, status=SkypeUtils.Status.Online):
         """
@@ -300,10 +300,11 @@ class SkypeSettings(SkypeObj):
         def prop(self, val):
             val = bool(val) ^ invert
             self.syncFlags()
-            if not val == (id in self.flags):
+            if val != (id in self.flags):
                 self.skype.conn("PUT" if val else "DELETE", "{0}/{1}".format(SkypeConnection.API_FLAGS, id),
                                 auth=SkypeConnection.Auth.SkypeToken)
                 self.flags.add(id) if val else self.flags.remove(id)
+
         return prop
 
     def apiProp(id):

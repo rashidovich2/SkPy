@@ -55,8 +55,7 @@ class SkypeEvent(SkypeObj):
         """
         Acknowledge receipt of an event, if a response is required.
         """
-        url = self.raw.get("resource", {}).get("ackrequired")
-        if url:
+        if url := self.raw.get("resource", {}).get("ackrequired"):
             self.skype.conn("POST", url, auth=SkypeConnection.Auth.RegToken)
 
 

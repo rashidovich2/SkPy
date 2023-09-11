@@ -26,28 +26,29 @@ class SkypeChat(SkypeObj):
 
     @classmethod
     def rawToFields(cls, raw={}):
-        return {"id": raw.get("id"),
-                "alerts": False if raw.get("properties", {}).get("alerts") == "false" else True}
+        return {
+            "id": raw.get("id"),
+            "alerts": raw.get("properties", {}).get("alerts") != "false",
+        }
 
     @classmethod
     def fromRaw(cls, skype=None, raw={}):
         id = raw.get("id")
-        if "threadProperties" in raw:
-            active = True
-            try:
-                info = skype.conn("GET", "{0}/threads/{1}".format(skype.conn.msgsHost, raw.get("id")),
-                                  auth=SkypeConnection.Auth.RegToken,
-                                  params={"view": "msnp24Equivalent"}).json()
-            except SkypeApiException as e:
-                if e.args[1].status_code in (403, 404):
-                    active = False
-                else:
-                    raise
-            else:
-                raw.update(info)
-            return SkypeGroupChat(skype, raw, **SkypeGroupChat.rawToFields(raw, active=active))
-        else:
+        if "threadProperties" not in raw:
             return SkypeSingleChat(skype, raw, **SkypeSingleChat.rawToFields(raw))
+        active = True
+        try:
+            info = skype.conn("GET", "{0}/threads/{1}".format(skype.conn.msgsHost, raw.get("id")),
+                              auth=SkypeConnection.Auth.RegToken,
+                              params={"view": "msnp24Equivalent"}).json()
+        except SkypeApiException as e:
+            if e.args[1].status_code in (403, 404):
+                active = False
+            else:
+                raise
+        else:
+            raw.update(info)
+        return SkypeGroupChat(skype, raw, **SkypeGroupChat.rawToFields(raw, active=active))
 
     def getMsgs(self):
         """
@@ -126,8 +127,7 @@ class SkypeChat(SkypeObj):
         Returns:
             .SkypeMsg: copy of the sent message object
         """
-        msg = {"contenttype": "text", "messagetype": "Text"}
-        msg.update(kwargs)
+        msg = {"contenttype": "text", "messagetype": "Text"} | kwargs
         if editId:
             msgId = editId
             clientTime = None
@@ -141,13 +141,21 @@ class SkypeChat(SkypeObj):
             msg["clientmessageid"] = str(clientTime)
             msgId, arriveTime = self.createRaw(msg)
         arriveDate = datetime.fromtimestamp(arriveTime / 1000) if arriveTime else datetime.now()
-        msg.update({"id": msgId,
-                    "conversationLink": "{0}/users/ME/conversations/{1}".format(self.skype.conn.msgsHost, self.id),
-                    "from": "{0}/users/ME/contacts/8:{1}".format(self.skype.conn.msgsHost, self.skype.userId),
-                    "imdisplayname": str(self.skype.user.name),
-                    "isactive": True,
-                    "originalarrivaltime": datetime.strftime(arriveDate, "%Y-%m-%dT%H:%M:%S.%fZ"),
-                    "type": "Message"})
+        msg |= {
+            "id": msgId,
+            "conversationLink": "{0}/users/ME/conversations/{1}".format(
+                self.skype.conn.msgsHost, self.id
+            ),
+            "from": "{0}/users/ME/contacts/8:{1}".format(
+                self.skype.conn.msgsHost, self.skype.userId
+            ),
+            "imdisplayname": str(self.skype.user.name),
+            "isactive": True,
+            "originalarrivaltime": datetime.strftime(
+                arriveDate, "%Y-%m-%dT%H:%M:%S.%fZ"
+            ),
+            "type": "Message",
+        }
         if clientTime:
             clientDate = datetime.fromtimestamp(clientTime / 1000)
             msg["composetime"] = datetime.strftime(clientDate, "%Y-%m-%dT%H:%M:%S.%fZ")
@@ -219,8 +227,10 @@ class SkypeChat(SkypeObj):
         Returns:
             .SkypeFileMsg: copy of the sent message object
         """
-        meta = {"type": "pish/image" if image else "sharing/file",
-                "permissions": dict(("8:{0}".format(id), ["read"]) for id in self.userIds)}
+        meta = {
+            "type": "pish/image" if image else "sharing/file",
+            "permissions": {"8:{0}".format(id): ["read"] for id in self.userIds},
+        }
         if not image:
             meta["filename"] = name
         objId = self.skype.conn("POST", "https://api.asm.skype.com/v1/objects",

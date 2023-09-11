@@ -8,7 +8,10 @@ from skpy import Skype, SkypeNewMessageEvent
 
 
 # Slightly less verbose access to environment variables.
-env = dict((x, os.getenv("SKPY_TESTSERVER_{0}".format(x.upper()))) for x in ("tokens", "recip"))
+env = {
+    x: os.getenv("SKPY_TESTSERVER_{0}".format(x.upper()))
+    for x in ("tokens", "recip")
+}
 
 
 class SkypeServerTestBase(unittest.TestCase):
@@ -102,8 +105,10 @@ class SkypeServerWriteTest(SkypeServerTestBase):
         chat = self.sk.chats.create([self.recip])
         try:
             chat.setTopic("Skype server test")
-            self.assertTrue(set(chat.userIds) == set([self.sk.userId, self.recip]),
-                            "Wrong group recipients: {0}".format(", ".join(chat.userIds)))
+            self.assertTrue(
+                set(chat.userIds) == {self.sk.userId, self.recip},
+                "Wrong group recipients: {0}".format(", ".join(chat.userIds)),
+            )
             msg = chat.sendMsg("Test message.")
             self.assertTrue(msg.chatId == chat.id, "Wrong group chat: {0}".format(chat.id))
             self.assertTrue(msg.content == "Test message.", "Wrong message: {0}".format(msg.content))

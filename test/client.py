@@ -13,13 +13,15 @@ import responses
 from skpy import Skype, SkypeConnection, SkypeContact, SkypeMsg, SkypeTextMsg, SkypeUtils
 
 
+
+
 class Data:
     """
     Dummy representations of data normally retrieved from Skype.
     """
 
     userId = "fred.2"
-    secToken = "t={}&amp;p=".format("s" * 1048)
+    secToken = f't={"s" * 1048}&amp;p='
     skypeToken = "s" * 424
     regToken = "r" * 886
     tokenExpiry = datetime.now() + timedelta(days=1)

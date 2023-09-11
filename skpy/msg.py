@@ -235,7 +235,7 @@ class SkypeMsg(SkypeObj):
                   "chatId": SkypeUtils.chatToId(raw.get("conversationLink", "")),
                   "content": raw.get("content")}
         if fields["content"]:
-            fields.update(cls.contentToFields(BeautifulSoup(fields["content"], "html.parser")))
+            fields |= cls.contentToFields(BeautifulSoup(fields["content"], "html.parser"))
         return fields
 
     @classmethod
@@ -436,17 +436,20 @@ class SkypeLocationMsg(SkypeMsg):
     @property
     def html(self):
         timestamp = self.time or datetime.now()
-        params = {}
-        for attr in ("latitude", "longitude", "altitude", "speed", "course"):
-            if getattr(self, attr):
-                params[attr] = getattr(self, attr)
+        params = {
+            attr: getattr(self, attr)
+            for attr in ("latitude", "longitude", "altitude", "speed", "course")
+            if getattr(self, attr)
+        }
         for attr in ("latitude", "longitude"):
             if attr in params:
                 params[attr] = int(params[attr] * 1e6)
         if self.address:
             params["address"] = self.address
-        params.update({"pointOfInterest": "",
-                       "timeStamp": str(int(time.mktime(timestamp.timetuple())))})
+        params |= {
+            "pointOfInterest": "",
+            "timeStamp": str(int(time.mktime(timestamp.timetuple()))),
+        }
         tag = makeTag("location", **params)
         tag.append(makeTag("a", self.address, href=self.mapUrl))
         return tag
@@ -484,7 +487,7 @@ class SkypeCardMsg(SkypeMsg):
 
         @property
         def data(self):
-            return dict((k, getattr(self, k)) for k in self.attrs)
+            return {k: getattr(self, k) for k in self.attrs}
 
     attrs = SkypeMsg.attrs + ("title", "body", "buttons")
 
@@ -567,7 +570,7 @@ class SkypeFileMsg(SkypeMsg):
             # api.asm.skype.com/.../0-xxx-yy-zzz... -> xxx-api.asm.skype.com
             if not self.urlFull:
                 return None
-            match = re.match("{}/0-([a-z0-9]+)-".format(SkypeConnection.API_ASM), self.urlFull)
+            match = re.match(f"{SkypeConnection.API_ASM}/0-([a-z0-9]+)-", self.urlFull)
             if not match:
                 return self.urlFull
             prefix = SkypeConnection.API_ASM_LOCAL.format(match.group(1))
@@ -580,9 +583,7 @@ class SkypeFileMsg(SkypeMsg):
     @classmethod
     def contentToFields(cls, content):
         fields = super(SkypeFileMsg, cls).contentToFields(content)
-        # BeautifulSoup converts tag names to lower case, and find() is case-sensitive.
-        file = content.find("uriobject")
-        if file:
+        if file := content.find("uriobject"):
             fileFields = {"name": (file.find("originalname") or {}).get("v"),
                           "size": (file.find("filesize") or {}).get("v"),
                           "urlFull": file.get("uri"),
@@ -758,8 +759,7 @@ class SkypeTopicPropertyMsg(SkypePropertyMsg):
     @classmethod
     def contentToFields(cls, content):
         fields = super(SkypeTopicPropertyMsg, cls).contentToFields(content)
-        propInfo = content.find("topicupdate")
-        if propInfo:
+        if propInfo := content.find("topicupdate"):
             fields.update({"userId": SkypeUtils.noPrefix(propInfo.find("initiator").text),
                            "topic": propInfo.find("value").text})
         return fields
@@ -786,8 +786,7 @@ class SkypeOpenPropertyMsg(SkypePropertyMsg):
     @classmethod
     def contentToFields(cls, content):
         fields = super(SkypeOpenPropertyMsg, cls).contentToFields(content)
-        propInfo = content.find("joiningenabledupdate")
-        if propInfo:
+        if propInfo := content.find("joiningenabledupdate"):
             fields.update({"userId": SkypeUtils.noPrefix(propInfo.find("initiator").text),
                            "open": propInfo.find("value").text == "true"})
         return fields
@@ -814,8 +813,7 @@ class SkypeHistoryPropertyMsg(SkypePropertyMsg):
     @classmethod
     def contentToFields(cls, content):
         fields = super(SkypeHistoryPropertyMsg, cls).contentToFields(content)
-        propInfo = content.find("historydisclosedupdate")
-        if propInfo:
+        if propInfo := content.find("historydisclosedupdate"):
             fields.update({"userId": SkypeUtils.noPrefix(propInfo.find("initiator").text),
                            "history": propInfo.find("value").text == "true"})
         return fields
@@ -853,8 +851,7 @@ class SkypeAddMemberMsg(SkypeMemberMsg):
     @classmethod
     def contentToFields(cls, content):
         fields = super(SkypeAddMemberMsg, cls).contentToFields(content)
-        memInfo = content.find("addmember")
-        if memInfo:
+        if memInfo := content.find("addmember"):
             fields.update({"userId": SkypeUtils.noPrefix(memInfo.find("initiator").text),
                            "memberId": SkypeUtils.noPrefix(memInfo.find("target").text)})
         return fields
@@ -881,8 +878,7 @@ class SkypeChangeMemberMsg(SkypeMemberMsg):
     @classmethod
     def contentToFields(cls, content):
         fields = super(SkypeChangeMemberMsg, cls).contentToFields(content)
-        memInfo = content.find("roleupdate")
-        if memInfo:
+        if memInfo := content.find("roleupdate"):
             fields.update({"userId": SkypeUtils.noPrefix(memInfo.find("initiator").text),
                            "memberId": SkypeUtils.noPrefix(memInfo.find("target").find("id").text),
                            "admin": memInfo.find("target").find("role").text == "admin"})
@@ -907,8 +903,7 @@ class SkypeRemoveMemberMsg(SkypeMemberMsg):
     @classmethod
     def contentToFields(cls, content):
         fields = super(SkypeRemoveMemberMsg, cls).contentToFields(content)
-        memInfo = content.find("deletemember")
-        if memInfo:
+        if memInfo := content.find("deletemember"):
             fields.update({"userId": SkypeUtils.noPrefix(memInfo.find("initiator").text),
                            "memberId": SkypeUtils.noPrefix(memInfo.find("target").text)})
         return fields

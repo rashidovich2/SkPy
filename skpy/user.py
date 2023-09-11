@@ -140,7 +140,9 @@ class SkypeUser(SkypeObj):
             return self.skype.chats["{0}:{1}".format(prefix, self.id)]
         except SkypeApiException:
             # Maybe a conversation doesn't exist yet, return a disconnected one instead.
-            return SkypeSingleChat(self.skype, id="{}:{}".format(prefix, self.id), alerts=True, userId=self.id)
+            return SkypeSingleChat(
+                self.skype, id=f"{prefix}:{self.id}", alerts=True, userId=self.id
+            )
 
     def invite(self, greeting=None):
         """
@@ -233,8 +235,8 @@ class SkypeContact(SkypeUser):
                      "Mobile": SkypeContact.Phone.Type.Mobile}
         phonesParts = raw.get("phones", [])
         for k in phonesMap:
-            if raw.get("phone" + k):
-                phonesParts.append({"type": phonesMap[k], "number": raw.get("phone" + k)})
+            if raw.get(f"phone{k}"):
+                phonesParts.append({"type": phonesMap[k], "number": raw.get(f"phone{k}")})
         phones = [SkypeContact.Phone(type=p["type"], number=p["number"]) for p in phonesParts]
         try:
             birthday = datetime.strptime(raw.get("birthday") or "", "%Y-%m-%d").date()
@@ -317,7 +319,7 @@ class SkypeBotUser(SkypeUser):
     @property
     @SkypeUtils.cacheResult
     def chat(self):
-        return self.skype.chats["28:" + self.id]
+        return self.skype.chats[f"28:{self.id}"]
 
 
 class SkypeContacts(SkypeObjs):

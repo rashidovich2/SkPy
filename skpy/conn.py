@@ -270,9 +270,7 @@ class SkypeConnection(SkypeObj):
             # Don't do anything if not a JSON response.
             pass
         else:
-            # If a state link exists in the response, store it for later.
-            state = json.get("_metadata", {}).get("syncState")
-            if state:
+            if state := json.get("_metadata", {}).get("syncState"):
                 states.append(state)
         return resp
 
@@ -617,9 +615,7 @@ class SkypeLiveAuthProvider(SkypeAuthProvider):
         tField = page.find(id="t")
         if tField is not None:
             raise LiveAuthSuccess(tField.get("value"))
-        # Look for an error message within the response.
-        errReg = re.search(r"sErrTxt:'([^'\\]*(\\.[^'\\]*)+)'", resp.text)
-        if errReg:
+        if errReg := re.search(r"sErrTxt:'([^'\\]*(\\.[^'\\]*)+)'", resp.text):
             errMsg = re.sub(r"<.*?>", "", errReg.group(1)).replace("\\'", "'").replace("\\\\", "\\")
             raise SkypeApiException(errMsg, resp)
         # Look for two-factor authentication device information (a non-empty array of factors) that we can't handle.
@@ -680,10 +676,12 @@ class SkypeLiveAuthProvider(SkypeAuthProvider):
         if not tokenField:
             raise SkypeApiException("Couldn't retrieve Skype token from login response", loginResp)
         token = tokenField.get("value")
-        expiryField = loginPage.find("input", {"name": "expires_in"})
-        expiry = None
-        if expiryField:
-            expiry = datetime.fromtimestamp(int(time.time()) + int(expiryField.get("value")))
+        if expiryField := loginPage.find("input", {"name": "expires_in"}):
+            expiry = datetime.fromtimestamp(
+                int(time.time()) + int(expiryField.get("value"))
+            )
+        else:
+            expiry = None
         return (token, expiry)
 
 
@@ -764,7 +762,7 @@ class SkypeSOAPAuthProvider(SkypeAuthProvider):
                     elif ftag == "faultstring":
                         msg = fnode.text
                 if code or msg:
-                    raise SkypeAuthException("{} - {}".format(code, msg), loginResp)
+                    raise SkypeAuthException(f"{code} - {msg}", loginResp)
                 else:
                     raise SkypeApiException("Unknown fault whilst requesting security token", loginResp)
             elif tag == "BinarySecurityToken":
@@ -788,7 +786,9 @@ class SkypeSOAPAuthProvider(SkypeAuthProvider):
             return (token, expiry)
         elif "status" in edgeData:
             status = edgeData["status"]
-            raise SkypeApiException("{} - {}".format(status.get("code"), status.get("text")), edgeResp)
+            raise SkypeApiException(
+                f'{status.get("code")} - {status.get("text")}', edgeResp
+            )
         else:
             raise SkypeApiException("Couldn't retrieve token from edge response", edgeResp)
 
@@ -866,10 +866,16 @@ class SkypeRefreshAuthProvider(SkypeAuthProvider):
                               cookies={"refresh-token": token})
         tField = BeautifulSoup(loginResp.text, "html.parser").find(id="t")
         if tField is None:
-            err = re.search(r"sErrTxt:'([^'\\]*(\\.[^'\\]*)*)'", loginResp.text)
-            errMsg = "Couldn't retrieve t field from login response"
-            if err:
-                errMsg = re.sub(r"<.*?>", "", err.group(1)).replace("\\'", "'").replace("\\\\", "\\")
+            if err := re.search(
+                r"sErrTxt:'([^'\\]*(\\.[^'\\]*)*)'", loginResp.text
+            ):
+                errMsg = (
+                    re.sub(r"<.*?>", "", err.group(1))
+                    .replace("\\'", "'")
+                    .replace("\\\\", "\\")
+                )
+            else:
+                errMsg = "Couldn't retrieve t field from login response"
             raise SkypeAuthException(errMsg, loginResp)
         return tField.get("value")
 
@@ -885,10 +891,12 @@ class SkypeRefreshAuthProvider(SkypeAuthProvider):
         if not tokenField:
             raise SkypeApiException("Couldn't retrieve Skype token from login response", loginResp)
         token = tokenField.get("value")
-        expiryField = loginPage.find("input", {"name": "expires_in"})
-        expiry = None
-        if expiryField:
-            expiry = datetime.fromtimestamp(int(time.time()) + int(expiryField.get("value")))
+        if expiryField := loginPage.find("input", {"name": "expires_in"}):
+            expiry = datetime.fromtimestamp(
+                int(time.time()) + int(expiryField.get("value"))
+            )
+        else:
+            expiry = None
         return (token, expiry)
 
 
@@ -917,17 +925,21 @@ class SkypeRegistrationTokenProvider(SkypeAuthProvider):
         while not token:
             secs = int(time.time())
             hash = self.getMac256Hash(str(secs))
-            headers = {"LockAndKey": "appId=msmsgs@msnmsgr.com; time={0}; lockAndKeyResponse={1}".format(secs, hash),
-                       "Authentication": "skypetoken=" + skypeToken, "BehaviorOverride": "redirectAs404"}
+            headers = {
+                "LockAndKey": "appId=msmsgs@msnmsgr.com; time={0}; lockAndKeyResponse={1}".format(
+                    secs, hash
+                ),
+                "Authentication": f"skypetoken={skypeToken}",
+                "BehaviorOverride": "redirectAs404",
+            }
             endpointResp = self.conn("POST", "{0}/users/ME/endpoints".format(msgsHost), codes=(200, 201, 404),
                                      headers=headers, json={"endpointFeatures": "Agent"})
             regTokenHead = endpointResp.headers.get("Set-RegistrationToken")
-            locHead = endpointResp.headers.get("Location")
-            if locHead:
+            if locHead := endpointResp.headers.get("Location"):
                 locParts = re.search(r"(https://[^/]+/v1)/users/ME/endpoints(/(%7B[a-z0-9\-]+%7D))?", locHead).groups()
                 if locParts[2]:
                     endpoint = SkypeEndpoint(self.conn, locParts[2].replace("%7B", "{").replace("%7D", "}"))
-                if not locParts[0] == msgsHost:
+                if locParts[0] != msgsHost:
                     # Skype is requiring the use of a different hostname.
                     msgsHost = locHead.rsplit("/", 4 if locParts[2] else 3)[0]
                     # Don't accept the token if present, we need to re-register first.
@@ -936,8 +948,9 @@ class SkypeRegistrationTokenProvider(SkypeAuthProvider):
                 token = re.search(r"(registrationToken=[a-z0-9\+/=]+)", regTokenHead, re.I).group(1)
                 regExpiry = re.search(r"expires=(\d+)", regTokenHead).group(1)
                 expiry = datetime.fromtimestamp(int(regExpiry))
-                regEndMatch = re.search(r"endpointId=({[a-z0-9\-]+})", regTokenHead)
-                if regEndMatch:
+                if regEndMatch := re.search(
+                    r"endpointId=({[a-z0-9\-]+})", regTokenHead
+                ):
                     endpoint = SkypeEndpoint(self.conn, regEndMatch.group(1))
             if not endpoint and endpointResp.status_code == 200 and endpointResp.json():
                 # Use the most recent endpoint listed in the JSON response.
@@ -993,7 +1006,7 @@ class SkypeRegistrationTokenProvider(SkypeAuthProvider):
                 qwDatum = int(pdwData[pos])
                 pos += 1
                 qwDatum *= CS64_e
-                qwDatum = qwDatum % MODULUS
+                qwDatum %= MODULUS
                 qwMAC += qwDatum
                 qwMAC *= CS64_a
                 qwMAC += CS64_b
@@ -1109,8 +1122,9 @@ class SkypeEndpoint(SkypeObj):
         if not self.subscribed:
             self.subscribe()
         resources = list(self.resources)
-        for contact in contacts:
-            resources.append("/v1/users/ME/contacts/8:{}".format(contact.id))
+        resources.extend(
+            f"/v1/users/ME/contacts/8:{contact.id}" for contact in contacts
+        )
         self.conn("PUT", "{0}/users/ME/endpoints/{1}/subscriptions/0".format(self.conn.msgsHost, self.id),
                   auth=SkypeConnection.Auth.RegToken,
                   params={"name": "interestedResources"},

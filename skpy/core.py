@@ -68,7 +68,7 @@ class SkypeObj(object):
             other (SkypeObj): second object to copy fields from
         """
         for attr in self.attrs:
-            if not getattr(other, attr, None) is None:
+            if getattr(other, attr, None) is not None:
                 setattr(self, attr, getattr(other, attr))
         if other.raw:
             if not self.raw:
@@ -100,7 +100,7 @@ class SkypeObj(object):
         reprs = []
         for attr in self.attrs:
             val = getattr(self, attr)
-            if not val == self.defaults.get(attr):
+            if val != self.defaults.get(attr):
                 reprs.append("{0}={1}".format(attr, repr(val)))
         return "{0}({1})".format(self.__class__.__name__, ", ".join(reprs))
 
